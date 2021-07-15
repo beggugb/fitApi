@@ -36,11 +36,14 @@ class MembresiaController {
 		   
                 Promise.all([
                   PlanService.add(pagos),
-                  MembresiaService.getAllClientes(1,12,req.body.clienteId)
-
+                  MembresiaService.getAllClientes(1,12,req.body.clienteId),
+		  MembresiaService.getIt(result.Membresia.id)
                 ])
-                  .then(([resu, rem]) => {
-                    res.status(200).send({ message: 'Membresia registrada', result: rem });
+                  .then(([resu, rem, dedu]) => {
+	             Promise.all([MembresiaService.todu(dedu,dedu.id)])
+		      .then(([ok]) => {			  
+	                    res.status(200).send({ message: 'Membresia registrada', result: rem });
+		   })
                 })    
            })
         })

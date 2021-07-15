@@ -2,13 +2,39 @@ import database from "../src/models";
 const Sequelize = require("sequelize");
 const Op = Sequelize.Op;
 
-const { Cliente, Membresia, Paquete } = database;
+const { imembresias, Cliente, Membresia, Paquete } = database;
 
 class MembresiaService {
 
+   static todu(dato, datoId) {	   
+    return new Promise((resolve, reject) => {
+
+    var dd = dato.createdAt ? new Date(dato.createdAt) : new Date('2020-01-01 03:24:55.528-04')
+    var reg = (new Date(dd + 'UTC')).toISOString().replace(/-/g, '-').split('T')[0]	    
+      Membresia.update({registro : reg}, { where: { id: Number(datoId) } })
+        .then((membresia) => resolve(membresia))
+        .catch((reason) => reject(reason));
+    });
+  }
+	
+  static getTodus(inicio,fin) {
+   return new Promise((resolve, reject) => {
+      Membresia.findAll({
+        raw: true,
+        nest: true,
+	offset: parseInt(inicio),
+        limit: parseInt(fin),      
+        order: [['id', 'ASC']],
+        attributes: ["id","usuarioId","createdAt"],
+      })
+        .then((membresias) =>
+          resolve(membresias)
+        )
+        .catch((reason) => reject(reason));
+    });
+  }	 
    
   static totals(desde,hasta,usuarioId) {    
-	  console.log(usuarioId)
     return new Promise((resolve, reject) => {        
         Membresia.findAll({ 
           raw: true,
@@ -17,10 +43,9 @@ class MembresiaService {
           attributes: ['paqueteId',[Sequelize.fn('count', Sequelize.col('ingresos')), 'cantidad'],[Sequelize.fn('sum', Sequelize.col('ingresos')), 'total']],                      
 	      where: {
          	 [Op.and]: [
-	            { createdAt: { [Op.between]: [desde, hasta]}},
-          	  { usuarioId: usuarioId },
-              { estado: true },
-	          ]
+	         { registro: { [Op.between]: [desde, hasta]}},
+          	 { usuarioId: usuarioId },
+                 { estado: true }]
           },	
           group: ['paqueteId','Paquete.nombre','Paquete.valor'],
         })           
@@ -39,10 +64,9 @@ class MembresiaService {
           raw: true,
           nest: true,
           attributes: [[Sequelize.fn('sum', Sequelize.col('ingresos')), 'total']],            
-         /* where :  { createdAt: {[Op.betwaeen]: [desde, hasta]}}*/
            where: {
                  [Op.and]: [
-                   { createdAt: { [Op.between]: [desde, hasta]}},
+                   { registro: { [Op.between]: [desde, hasta]}},
                    { usuarioId: usuarioId },
                    { estado: true },
                   ]
@@ -66,7 +90,7 @@ class MembresiaService {
          /*where :  { ivigencia: {[Op.between]: [desde, hasta]}},   */
 	 where: {
           [Op.and]: [
-            { createdAt: { [Op.between]: [desde, hasta]}},
+            { registro: { [Op.between]: [desde, hasta]}},
             { estado: true },
             { usuarioId: usuarioId }
           ]
@@ -87,7 +111,6 @@ class MembresiaService {
          .catch((reason) => reject(reason));
      });
    }	
-
   static add(newmem) {    
     return new Promise((resolve, reject) => {        
         Membresia.create(newmem,{ 
@@ -101,6 +124,20 @@ class MembresiaService {
               });           
      });
   }
+
+   static getIt(datoId) { 
+    return new Promise((resolve, reject) => {
+      Membresia.findByPk(datoId, {
+                raw: true,
+                nest: true,
+	        attributes: ["id", "createdAt"]
+              })
+        .then((result) => {
+                resolve(result)
+        })
+        .catch((reason) => reject(reason));
+    });
+  }	
 
   static getItem(datoId) {    
     return new Promise((resolve, reject) => {
@@ -182,6 +219,95 @@ class MembresiaService {
         .catch((reason) => reject(reason));
     });
   }
+  /*************administrador***************/
+
+
+
+  static atotals(desde,hasta) {
+    return new Promise((resolve, reject) => {
+        Membresia.findAll({
+          raw: true,
+          nest: true,
+          include: [{ model: Paquete, attributes: ["nombre","valor"]}],
+          attributes: ['paqueteId',[Sequelize.fn('count', Sequelize.col('ingresos')), 'cantidad'],[Sequelize.fn('sum', Sequelize.col('ingresos')), 'total']],
+              where: {
+                 [Op.and]: [
+                 { registro: { [Op.between]: [desde, hasta]}},                 
+                 { estado: true }]
+          },
+          group: ['paqueteId','Paquete.nombre','Paquete.valor'],
+        })
+            .then((result) => {
+                resolve(result)
+            })
+            .catch((reason) => {
+                reject({ message: reason.message })
+              });
+     });
+  }
+
+
+   static atotal(desde,hasta) { 
+    return new Promise((resolve, reject) => {
+        Membresia.findOne({ 
+          raw: true,
+          nest: true,
+          attributes: [[Sequelize.fn('sum', Sequelize.col('ingresos')), 'total']],
+           where: {
+                 [Op.and]: [
+                   { registro: { [Op.between]: [desde, hasta]}},                   
+                   { estado: true },
+                  ]
+          },
+
+        })
+            .then((result) => {
+                resolve(result)
+            })
+            .catch((reason) => {
+                reject({ message: reason.message })
+              });
+     });
+  }
+
+ static atotalDetalle(desde,hasta) {
+    return new Promise((resolve, reject) => {
+       Membresia.findAndCountAll({
+         raw: true,
+         nest: true,
+         /*where :  { ivigencia: {[Op.between]: [desde, hasta]}},   */
+         where: {
+          [Op.and]: [
+            { registro: { [Op.between]: [desde, hasta]}},
+            { estado: true }
+          ]
+         },
+         order: [['ivigencia', 'DESC']],
+         include: [
+             { model: Paquete, attributes: ["id", "nombre","valor"]},
+             { model: Cliente, attributes: ["id", "nombres"]}
+
+         ]
+       })
+         .then((membresias) =>
+           resolve({
+             total: membresias.count,
+             data: membresias.rows,
+           })
+         )
+         .catch((reason) => reject(reason));
+     });
+   }
+
+
+
+
+
+
+
+
+  /*************administrador***************/
+
 }
 
 export default MembresiaService;
